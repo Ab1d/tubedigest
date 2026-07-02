@@ -105,7 +105,7 @@ export function validateProviderConfig(providerId: string, apiKey: string, model
 
 /* ───────────────────────── Backend Provider Fetch ──────────────────────── */
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3001";
+const API_BASE = import.meta.env.PROD ? "" : (import.meta.env.VITE_API_URL || "http://localhost:3001");
 
 export async function fetchAvailableProviders(): Promise<ProviderConfig[]> {
   try {
