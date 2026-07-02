@@ -1,0 +1,14 @@
+{
+  "name": "tubedigest-local",
+  "version": "1.0.0",
+  "description": "TubeDigest Local — Fully local YouTube video summarizer with Ollama AI",
+  "scripts": {
+    "setup": "bash setup.sh",
+    "start:local": "bash start.sh",
+    "start:backend": "cd backend && npm start",
+    "start:frontend": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build"
+  },
+  "keywords": ["youtube", "summarizer", "ollama", "local-ai", "productivity"],
+  "license": "MIT"
+}
