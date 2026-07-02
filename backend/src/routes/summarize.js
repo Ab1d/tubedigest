@@ -33,6 +33,11 @@ async function fetchYouTubeMetadata(url) {
 
 const router = Router();
 
+function getUserId(req) {
+  const id = req.headers["x-user-id"];
+  return typeof id === "string" ? id.trim() : "";
+}
+
 function formatDuration(totalSeconds) {
   if (!totalSeconds || totalSeconds <= 0) return "--:--";
   const hours = Math.floor(totalSeconds / 3600);
@@ -111,22 +116,28 @@ router.post("/", async (req, res, next) => {
       },
     };
 
-    // Persist to database (fire-and-forget, don't block response)
-    createSummary({
-      videoId: transcriptResult.videoId,
-      videoUrl: url,
-      videoTitle: videoInfo.title || "YouTube Video",
-      channelName: videoInfo.channel || "YouTube Channel",
-      duration: formatDuration(transcriptResult.durationSeconds),
-      thumbnailUrl: metadata?.thumbnail || `https://img.youtube.com/vi/${transcriptResult.videoId}/mqdefault.jpg`,
-      summaryJson: summary,
-    }).catch((err) => {
-      if (err.message === "Database not configured") {
-        console.warn("[DB] Skipping history persistence — DATABASE_URL not set.");
-      } else {
-        console.error("[DB] Failed to save summary:", err.message);
-      }
-    });
+    // Persist to database scoped to the current browser/user (fire-and-forget)
+    const userId = getUserId(req);
+    if (userId) {
+      createSummary({
+        userId,
+        videoId: transcriptResult.videoId,
+        videoUrl: url,
+        videoTitle: videoInfo.title || "YouTube Video",
+        channelName: videoInfo.channel || "YouTube Channel",
+        duration: formatDuration(transcriptResult.durationSeconds),
+        thumbnailUrl: metadata?.thumbnail || `https://img.youtube.com/vi/${transcriptResult.videoId}/mqdefault.jpg`,
+        summaryJson: summary,
+      }).catch((err) => {
+        if (err.message === "Database not configured") {
+          console.warn("[DB] Skipping history persistence — DATABASE_URL not set.");
+        } else {
+          console.error("[DB] Failed to save summary:", err.message);
+        }
+      });
+    } else {
+      console.warn("[DB] Skipping history persistence — no X-User-Id header.");
+    }
 
     res.json(result);
   } catch (error) {

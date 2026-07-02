@@ -11,6 +11,7 @@ import {
 } from "./mockAIService";
 import type { SummaryData } from "./mockAIService";
 import { loadActiveProvider, withProviderCredentials } from "./aiProviderService";
+import { getUserId } from "./userService";
 
 export type { SummaryData };
 export { generateMockHistory, fetchYouTubeMetadata };
@@ -21,6 +22,7 @@ export { generateMockHistory, fetchYouTubeMetadata };
 export async function fetchHistory(): Promise<SummaryData[]> {
   try {
     const response = await fetch(`${API_BASE}/api/history`, {
+      headers: apiHeaders(),
       signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) return [];
@@ -35,7 +37,7 @@ export async function searchHistory(query: string): Promise<SummaryData[]> {
   try {
     const response = await fetch(
       `${API_BASE}/api/history/search?q=${encodeURIComponent(query)}`,
-      { signal: AbortSignal.timeout(5000) }
+      { headers: apiHeaders(), signal: AbortSignal.timeout(5000) }
     );
     if (!response.ok) return [];
     const data = await response.json();
@@ -49,6 +51,7 @@ export async function clearHistory(): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE}/api/history`, {
       method: "DELETE",
+      headers: apiHeaders(),
       signal: AbortSignal.timeout(5000),
     });
     return response.ok;
@@ -61,6 +64,7 @@ export async function deleteHistoryItem(id: string): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE}/api/history/${id}`, {
       method: "DELETE",
+      headers: apiHeaders(),
       signal: AbortSignal.timeout(5000),
     });
     return response.ok;
@@ -70,6 +74,14 @@ export async function deleteHistoryItem(id: string): Promise<boolean> {
 }
 
 const API_BASE = import.meta.env.PROD ? "" : (import.meta.env.VITE_API_URL || "http://localhost:3001");
+
+function apiHeaders(contentType = false): Record<string, string> {
+  const headers: Record<string, string> = { "X-User-Id": getUserId() };
+  if (contentType) {
+    headers["Content-Type"] = "application/json";
+  }
+  return headers;
+}
 
 // Track if backend is available (checked on first request)
 let backendAvailable: boolean | null = null;
@@ -86,6 +98,7 @@ export async function checkBackendStatus(): Promise<{
   try {
     const response = await fetch(`${API_BASE}/api/health`, {
       method: "GET",
+      headers: apiHeaders(),
       signal: AbortSignal.timeout(3000),
     });
     if (!response.ok) return { ok: false, aiReady: false };
@@ -97,6 +110,7 @@ export async function checkBackendStatus(): Promise<{
         : "";
       const aiRes = await fetch(`${API_BASE}/api/summarize/status${query}`, {
         method: "GET",
+        headers: apiHeaders(),
         signal: AbortSignal.timeout(3000),
       });
       const aiData = await aiRes.json();
@@ -244,7 +258,7 @@ export async function askQuestion(
 ): Promise<string> {
   const response = await fetch(`${API_BASE}/api/chat/ask`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: apiHeaders(true),
     body: JSON.stringify(withProviderCredentials({ url, summary, question, history })),
   });
 
@@ -269,7 +283,7 @@ export async function generateSuggestedQuestions(
 ): Promise<string[]> {
   const response = await fetch(`${API_BASE}/api/chat/suggest`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: apiHeaders(true),
     body: JSON.stringify(withProviderCredentials({ summary })),
   });
 
@@ -328,7 +342,7 @@ export async function summarizeVideo(
 
     const response = await fetch(`${API_BASE}/api/summarize`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(true),
       body: JSON.stringify(withProviderCredentials({ url })),
     });
 

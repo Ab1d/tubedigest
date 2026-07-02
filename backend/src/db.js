@@ -49,6 +49,17 @@ export async function initDb() {
       `);
 
       await client.query(`
+        ALTER TABLE summaries
+        ADD COLUMN IF NOT EXISTS user_id TEXT DEFAULT 'legacy';
+      `);
+      await client.query(`
+        ALTER TABLE summaries ALTER COLUMN user_id DROP DEFAULT;
+      `);
+      await client.query(`
+        ALTER TABLE summaries ALTER COLUMN user_id SET NOT NULL;
+      `);
+
+      await client.query(`
         CREATE INDEX IF NOT EXISTS idx_summaries_created_at
         ON summaries (created_at DESC);
       `);
@@ -56,6 +67,11 @@ export async function initDb() {
       await client.query(`
         CREATE INDEX IF NOT EXISTS idx_summaries_video_id
         ON summaries (video_id);
+      `);
+
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_summaries_user_id
+        ON summaries (user_id);
       `);
 
       dbEnabled = true;
@@ -79,6 +95,7 @@ function checkDb() {
 
 /** Insert a new summary record. */
 export async function createSummary({
+  userId,
   videoId,
   videoUrl,
   videoTitle,
@@ -90,56 +107,58 @@ export async function createSummary({
   checkDb();
   const { rows } = await getPool().query(
     `INSERT INTO summaries
-       (video_id, video_url, video_title, channel_name, duration, thumbnail_url, summary_json)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+       (user_id, video_id, video_url, video_title, channel_name, duration, thumbnail_url, summary_json)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING *`,
-    [videoId, videoUrl, videoTitle, channelName, duration, thumbnailUrl, JSON.stringify(summaryJson)]
+    [userId, videoId, videoUrl, videoTitle, channelName, duration, thumbnailUrl, JSON.stringify(summaryJson)]
   );
   return rows[0];
 }
 
-/** List recent summaries (newest first). */
-export async function listSummaries({ limit = 100, offset = 0 } = {}) {
+/** List recent summaries for a user (newest first). */
+export async function listSummaries({ userId, limit = 100, offset = 0 } = {}) {
   checkDb();
   const { rows } = await getPool().query(
     `SELECT * FROM summaries
+     WHERE user_id = $3
      ORDER BY created_at DESC
      LIMIT $1 OFFSET $2`,
-    [limit, offset]
+    [limit, offset, userId]
   );
   return rows;
 }
 
-/** Full-text search across title, channel, and summary content. */
-export async function searchSummaries(query, { limit = 100 } = {}) {
+/** Full-text search across title, channel, and summary content for a user. */
+export async function searchSummaries(userId, query, { limit = 100 } = {}) {
   checkDb();
   const like = `%${query}%`;
   const { rows } = await getPool().query(
     `SELECT * FROM summaries
-     WHERE video_title ILIKE $1
+     WHERE user_id = $3
+       AND (video_title ILIKE $1
         OR channel_name ILIKE $1
-        OR summary_json::text ILIKE $1
+        OR summary_json::text ILIKE $1)
      ORDER BY created_at DESC
      LIMIT $2`,
-    [like, limit]
+    [like, limit, userId]
   );
   return rows;
 }
 
-/** Delete a single summary by id. */
-export async function deleteSummary(id) {
+/** Delete a single summary by id for a user. */
+export async function deleteSummary(userId, id) {
   checkDb();
   const { rowCount } = await getPool().query(
-    `DELETE FROM summaries WHERE id = $1`,
-    [id]
+    `DELETE FROM summaries WHERE id = $1 AND user_id = $2`,
+    [id, userId]
   );
   return rowCount > 0;
 }
 
-/** Clear all summaries. */
-export async function clearAllSummaries() {
+/** Clear all summaries for a user. */
+export async function clearAllSummaries(userId) {
   checkDb();
-  await getPool().query(`DELETE FROM summaries`);
+  await getPool().query(`DELETE FROM summaries WHERE user_id = $1`, [userId]);
 }
 
 /** Convert a DB row to the shape the frontend expects. */

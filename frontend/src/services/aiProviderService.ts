@@ -16,7 +16,17 @@ export interface ActiveProvider {
   model: string;
 }
 
+import { getUserId } from "./userService";
+
 const STORAGE_KEY = "tubedigest_provider_config";
+
+function apiHeaders(contentType = false): Record<string, string> {
+  const headers: Record<string, string> = { "X-User-Id": getUserId() };
+  if (contentType) {
+    headers["Content-Type"] = "application/json";
+  }
+  return headers;
+}
 
 /* ───────────────────────── Provider Definitions ────────────────────────── */
 
@@ -110,6 +120,7 @@ const API_BASE = import.meta.env.PROD ? "" : (import.meta.env.VITE_API_URL || "h
 export async function fetchAvailableProviders(): Promise<ProviderConfig[]> {
   try {
     const response = await fetch(`${API_BASE}/api/providers`, {
+      headers: apiHeaders(),
       signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) return BUILT_IN_PROVIDERS;
@@ -131,7 +142,7 @@ export async function validateProviderWithBackend(
   try {
     const response = await fetch(`${API_BASE}/api/providers/validate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(true),
       body: JSON.stringify({ provider, apiKey, model }),
       signal: AbortSignal.timeout(8000),
     });
